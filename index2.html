@@ -35,10 +35,10 @@ ws = new WebSocket("ws://54.177.197.224:5044");
 ws.addEventListener("open", () => {
     console.log("Opened websocket");
     ws.send("Hello from the client");
-});
+    ws.addEventListener("message", ({ data }) => {
+        console.log(data);
+    });
 
-ws.addEventListener("message", ({ data }) => {
-    console.log(data);
 });
 
 
