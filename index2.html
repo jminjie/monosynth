@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<script src="https://unpkg.com/tone"></script>
+<button id="play-button">Enable audio</button>
+
+<script src="https://unpkg.com/@tonejs/midi"></script>
+
+<script src="webmidiapi.js"></script>
+<script>
+    if (navigator.requestMIDIAccess) {
+    console.log('This browser supports WebMIDI!');
+} else {
+    console.log('WebMIDI is not supported in this browser.');
+}
+
+navigator.requestMIDIAccess()
+    .then(onMIDISuccess, onMIDIFailure);
+
+
+function onMIDIFailure() {
+    console.log('Could not access your MIDI devices.');
+}
+
+function onMIDISuccess(midiAccess) {
+    console.log(midiAccess);
+
+    var inputs = midiAccess.inputs;
+    var outputs = midiAccess.outputs;
+    for (var input of midiAccess.inputs.values()) {
+        input.onmidimessage = getMIDIMessage;
+    }
+}
+
+ws = new WebSocket("ws://54.177.197.224:5044");
+ws.addEventListener("open", () => {
+    console.log("Opened websocket");
+    ws.send("Hello from the client");
+});
+
+ws.addEventListener("message", ({ data }) => {
+    console.log(data);
+});
+
+
+function getMIDIMessage(message) {
+    var command = message.data[0];
+    var note = message.data[1];
+    var velocity = (message.data.length > 2) ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
+
+
+    let midiInfo = command + '-' + note + '-' + velocity;
+    console.log("sending " + midiInfo);
+    ws.send(midiInfo);
+    switch (command) {
+        case 144: // noteOn
+            if (velocity > 0) {
+                noteOn(note, velocity);
+            } else {
+                noteOff(note);
+            }
+            break;
+        case 128: // noteOff
+            noteOff(note);
+            break;
+        // pedal on/off
+    }
+}
+
+//const synth = new Tone.AMSynth().toDestination()
+const sampler = new Tone.Sampler({
+	urls: {
+		A3: "A1.mp3",
+		A4: "A2.mp3",
+	},
+	baseUrl: "https://tonejs.github.io/audio/casio/",
+}).toDestination();
+
+function noteOn(midiValue, velocity) {
+    let note = getNote(midiValue);
+    sampler.triggerAttack(note, Tone.context.currentTime, velocity/60)
+}
+
+function noteOff(midiValue) {
+    let note = getNote(midiValue);
+    sampler.triggerRelease(note, Tone.context.currentTime)
+}
+
+NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+function getNote(midiValue) {
+    let noteLetter = NOTES[midiValue%12];
+    let octave = midiValue/12;
+    return noteLetter + octave;
+}
+
+</script>
+</html>
