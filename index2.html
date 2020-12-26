@@ -37,6 +37,8 @@ ws.addEventListener("open", () => {
     ws.send("Hello from the client");
     ws.addEventListener("message", ({ data }) => {
         console.log(data);
+        noteInfo = data.split('-');
+        playNote(noteInfo[0], noteInfo[1], noteInfo[2]);
     });
 
 });
@@ -47,10 +49,16 @@ function getMIDIMessage(message) {
     var note = message.data[1];
     var velocity = (message.data.length > 2) ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
 
+    if (command == 144 || command == 128) {
+        let midiInfo = command + '-' + note + '-' + velocity;
+        console.log("sending " + midiInfo);
+        ws.send(midiInfo);
+    }
+    playNote(command, note, velocity);
+}
 
-    let midiInfo = command + '-' + note + '-' + velocity;
-    console.log("sending " + midiInfo);
-    ws.send(midiInfo);
+function playNote(command, note, velocity) {
+    console.log("playing " + command + '-' + note + '-' + velocity);
     switch (command) {
         case 144: // noteOn
             if (velocity > 0) {
