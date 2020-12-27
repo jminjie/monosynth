@@ -3,6 +3,10 @@
 <script src="https://unpkg.com/tone"></script>
 <button id="play-button">Enable audio</button>
 
+<br>
+<button onclick="setForcedDelay()">Set forced delay (s)</button>
+<input type="text" id="forcedDelay" value="1">
+
 <script src="https://unpkg.com/@tonejs/midi"></script>
 
 <script src="webmidiapi.js"></script>
@@ -13,7 +17,13 @@
     console.log('WebMIDI is not supported in this browser.');
 }
 
+FORCED_OFFSET = 1.0;
 CURRENT_TIME = -1;
+
+function setForcedDelay() {
+    FORCED_OFFSET = parseFloat(document.getElementById("forcedDelay").value);
+    console.log("Setting FORCED_OFFSET=" + FORCED_OFFSET);
+}
 
 navigator.requestMIDIAccess()
     .then(onMIDISuccess, onMIDIFailure);
@@ -44,17 +54,17 @@ ws.addEventListener("open", () => {
         let command = parseInt(noteInfo[0]);
         let byte1 = parseInt(noteInfo[1]);
         let byte2 = parseInt(noteInfo[2]);
-        let timestamp = parseInt(noteInfo[3]);
+        let timestamp = parseFloat(noteInfo[3]);
         // command is note up or down
         if (command == 144 || command == 128) {
             playNote(command, byte1, byte2, calculateOffset(timestamp));
         } else if (command == 176 && byte1 == 64) {
             if (byte2 == 0) {
                 // pedal off received from server
-                pedalOff(calculateOffset(timeStamp));
+                pedalOff(calculateOffset(timestamp));
             } else {
                 // pedal on received from server
-                pedalOn(calculateOffset(timeStamp));
+                pedalOn(calculateOffset(timestamp));
             }
         }
     });
@@ -62,9 +72,10 @@ ws.addEventListener("open", () => {
 });
 
 Tone.context.latencyHint = "fastest";
+Tone.Transport.start("+0.1")
 
-last_received_time = 0;
-last_played_time = 0;
+last_received_time = 0.0;
+last_played_time = 0.0;
 
 function calculateOffset(timestamp) {
     // convert the player's timestamp into our timestamp by calculating the time since the last
@@ -76,8 +87,9 @@ function calculateOffset(timestamp) {
         last_received_time = timestamp;
         last_played_time = target_play_time;
 
-        return target_play_time;
+        return target_play_time + FORCED_OFFSET;
     } else {
+        console.log("using CURRENT_TIME");
         last_received_time = timestamp;
         last_played_time = Tone.context.currentTime;
         return CURRENT_TIME;
@@ -105,23 +117,34 @@ function getMIDIMessage(message) {
         let midiInfo = command + '-' + byte1 + '-' + byte2;
         ws.send(midiInfo + '-' + Tone.context.currentTime);
         if (byte2 == 0) {
-            pedalOff();
+            pedalOff(CURRENT_TIME);
         } else {
-            pedalOn();
+            pedalOn(CURRENT_TIME);
         }
     }
 }
 
-function pedalOff() {
+function pedalOff(timestamp) {
     console.log("pedal off");
     pedal = false;
     release_keys = getAllKeysWhichArentPressed();
-    sampler.triggerRelease(release_keys, Tone.context.currentTime)
+    if (timestamp == CURRENT_TIME) {
+        sampler.triggerRelease(release_keys, Tone.context.currentTime)
+    } else {
+        sampler.triggerRelease(release_keys, timestamp);
+    }
 }
 
-function pedalOn() {
+function pedalOn(timestamp) {
     console.log("pedal on");
-    pedal = true;
+    if (timestamp == CURRENT_TIME) {
+        pedal = true;
+    } else {
+        setTimeout(
+            function() {
+                pedal = true;
+            }, timestamp - Tone.context.currentTime);
+    }
 }
 
 NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
@@ -159,13 +182,15 @@ function playNote(command, note, velocity, timestamp) {
     }
 }
 
-//const synth = new Tone.AMSynth().toDestination()
+//const synth = new Tone.Synth().toDestination()
+
 const sampler = new Tone.Sampler({
 	urls: {
 		A2: "A2.mp3",
 		A3: "A3.mp3",
 		A4: "A4.mp3",
 		A5: "A5.mp3",
+		A6: "A6.mp3",
 	},
 	//baseUrl: "https://tonejs.github.io/audio/casio/",
     baseUrl: "https://tonejs.github.io/audio/salamander/",
