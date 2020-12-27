@@ -66,20 +66,20 @@ sustained_keys = [];
 function getMIDIMessage(message) {
     console.log('midi input detected');
     var command = message.data[0];
-    var note = message.data[1];
-    var velocity = (message.data.length > 2) ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
+    var byte1 = message.data[1];
+    var byte2 = (message.data.length > 2) ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
 
     if (command == 144 || command == 128) {
-        let midiInfo = command + '-' + note + '-' + velocity;
+        let midiInfo = command + '-' + byte1 + '-' + byte2;
         //console.log("sending " + midiInfo);
         ws.send(midiInfo);
-        playNote(command, note, velocity);
+        playNote(command, byte1, byte2);
     }
     if (command == 176 && message.data[1] == 64) {
         // 0 off, 127 on
-        let midiInfo = command + '-' + pedal_code + '-' + state;
+        let midiInfo = command + '-' + byte1 + '-' + byte2;
         ws.send(midiInfo);
-        if (message.data[2] == 0) {
+        if (byte2 == 0) {
             pedalOff();
         } else {
             pedalOn();
