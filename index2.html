@@ -46,6 +46,7 @@ ws.addEventListener("open", () => {
 
 
 function getMIDIMessage(message) {
+    console.log('midi input detected');
     var command = message.data[0];
     var note = message.data[1];
     var velocity = (message.data.length > 2) ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
@@ -78,15 +79,17 @@ function playNote(command, note, velocity) {
 //const synth = new Tone.AMSynth().toDestination()
 const sampler = new Tone.Sampler({
 	urls: {
-		A3: "A1.mp3",
-		A4: "A2.mp3",
+		A3: "A3.mp3",
+		A4: "A4.mp3",
+		A5: "A5.mp3",
 	},
-	baseUrl: "https://tonejs.github.io/audio/casio/",
+	//baseUrl: "https://tonejs.github.io/audio/casio/",
+    baseUrl: "https://tonejs.github.io/audio/salamander/",
 }).toDestination();
 
 function noteOn(midiValue, velocity) {
     let note = getNote(midiValue);
-    sampler.triggerAttack(note, Tone.context.currentTime, velocity/60)
+    sampler.triggerAttack(note, Tone.context.currentTime, velocity/90)
 }
 
 function noteOff(midiValue) {
@@ -98,7 +101,7 @@ NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 function getNote(midiValue) {
     let noteLetter = NOTES[midiValue%12];
-    let octave = midiValue/12;
+    let octave = midiValue/12 - 1;
     return noteLetter + octave;
 }
 
