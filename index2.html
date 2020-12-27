@@ -39,11 +39,29 @@ ws.addEventListener("open", () => {
     ws.addEventListener("message", ({ data }) => {
         console.log(data);
         noteInfo = data.split('-');
-        playNote(parseInt(noteInfo[0]), parseInt(noteInfo[1]), parseInt(noteInfo[2]));
+        let command = parseInt(noteInfo[0]);
+        let byte1 = parseInt(noteInfo[1]);
+        let byte2 = parseInt(noteInfo[2]);
+        if (command == 144 || command == 128) {
+            // command is note up or down
+            playNote(command, byte1, byte2);
+        } else if (command == 176 && byte1 == 64) {
+            if (byte2 == 0) {
+                // pedal off received from server
+                pedalOff();
+            } else {
+                // pedal on received from server
+                pedalOn();
+            }
+        }
     });
 
 });
 
+pedal = false;
+
+pressed_keys = [];
+sustained_keys = [];
 
 function getMIDIMessage(message) {
     console.log('midi input detected');
@@ -53,32 +71,85 @@ function getMIDIMessage(message) {
 
     if (command == 144 || command == 128) {
         let midiInfo = command + '-' + note + '-' + velocity;
-        console.log("sending " + midiInfo);
+        //console.log("sending " + midiInfo);
         ws.send(midiInfo);
+        playNote(command, note, velocity);
     }
-    playNote(command, note, velocity);
+    if (command == 176 && message.data[1] == 64) {
+        // 0 off, 127 on
+        let midiInfo = command + '-' + pedal_code + '-' + state;
+        ws.send(midiInfo);
+        if (message.data[2] == 0) {
+            pedalOff();
+        } else {
+            pedalOn();
+        }
+    }
+}
+
+function pedalOff() {
+    console.log("pedal off");
+    pedal = false;
+    release_keys = getSustainedKeysWhichArentPressed();
+    //release_keys = getAllKeysWhichArentPressed();
+    console.log(release_keys);
+    sampler.triggerRelease(release_keys, Tone.context.currentTime)
+    sustained_keys = [];
+}
+
+function pedalOn() {
+    console.log("pedal on");
+    pedal = true;
+}
+
+NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+ALL_KEYS = []
+for (let i = 0; i < 88; i++) {
+    ALL_KEYS.push(NOTES[i%12] + (Math.floor(i/12)).toString());
+}
+
+function getAllKeysWhichArentPressed() {
+    let toReturn = [];
+    for (let i = 0; i < ALL_KEYS.length; i++) {
+        if (!pressed_keys.includes(ALL_KEYS[i])) {
+            toReturn.push(ALL_KEYS[i]);
+        }
+    }
+    return toReturn;
+}
+
+function getSustainedKeysWhichArentPressed() {
+    let toReturn = [];
+    for (let i = 0; i < sustained_keys.length; i++) {
+        if (!pressed_keys.includes(sustained_keys[i])) {
+            toReturn.push(sustained_keys[i]);
+        }
+    }
+    return toReturn;
 }
 
 function playNote(command, note, velocity) {
-    console.log("playing " + command + '-' + note + '-' + velocity);
+    //console.log("playing " + command + '-' + note + '-' + velocity);
     switch (command) {
-        case 144: // noteOn
+        case 144: // keyDown
             if (velocity > 0) {
-                noteOn(note, velocity);
+                keyDown(note, velocity);
             } else {
-                noteOff(note);
+                keyUp(note);
             }
             break;
-        case 128: // noteOff
-            noteOff(note);
+        case 128: // keyUp
+            keyUp(note);
             break;
-        // pedal on/off
+        case 176:
+
     }
 }
 
 //const synth = new Tone.AMSynth().toDestination()
 const sampler = new Tone.Sampler({
 	urls: {
+		A2: "A2.mp3",
 		A3: "A3.mp3",
 		A4: "A4.mp3",
 		A5: "A5.mp3",
@@ -87,17 +158,25 @@ const sampler = new Tone.Sampler({
     baseUrl: "https://tonejs.github.io/audio/salamander/",
 }).toDestination();
 
-function noteOn(midiValue, velocity) {
+function keyDown(midiValue, velocity) {
     let note = getNote(midiValue);
+    pressed_keys.push(note);
+    sustained_keys.push(note);
     sampler.triggerAttack(note, Tone.context.currentTime, velocity/90)
 }
 
-function noteOff(midiValue) {
+function keyUp(midiValue) {
     let note = getNote(midiValue);
-    sampler.triggerRelease(note, Tone.context.currentTime)
+    for (let i = 0; i < pressed_keys.length; i++) {
+        if (pressed_keys[i] == note) {
+            delete pressed_keys[i];
+        }
+    }
+    if (!pedal) {
+        sampler.triggerRelease(note, Tone.context.currentTime)
+    }
 }
 
-NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 function getNote(midiValue) {
     let noteLetter = NOTES[midiValue%12];
