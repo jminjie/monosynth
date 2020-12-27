@@ -61,9 +61,27 @@ ws.addEventListener("open", () => {
 
 });
 
+Tone.context.latencyHint = "fastest";
+
+last_received_time = 0;
+last_played_time = 0;
+
 function calculateOffset(timestamp) {
-    // convert the player's timestamp into our timestamp
-    return timestamp + 1;
+    // convert the player's timestamp into our timestamp by calculating the time since the last
+    // note and adding that to the last note we played
+    if (last_received_time != 0) {
+        let time_from_last = timestamp - last_received_time
+        let target_play_time = last_played_time + time_from_last;
+
+        last_received_time = timestamp;
+        last_played_time = target_play_time;
+
+        return target_play_time;
+    } else {
+        last_received_time = timestamp;
+        last_played_time = Tone.context.currentTime;
+        return CURRENT_TIME;
+    }
 }
 
 pedal = false;
@@ -85,7 +103,7 @@ function getMIDIMessage(message) {
     if (command == 176 && message.data[1] == 64) {
         // 0 off, 127 on
         let midiInfo = command + '-' + byte1 + '-' + byte2;
-        ws.send(midiInfo);
+        ws.send(midiInfo + '-' + Tone.context.currentTime);
         if (byte2 == 0) {
             pedalOff();
         } else {
