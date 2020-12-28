@@ -101,7 +101,7 @@ pedal = false;
 pressed_keys = new Set()
 
 function getMIDIMessage(message) {
-    console.log('midi input detected');
+    //console.log('midi input detected');
     var command = message.data[0];
     var byte1 = message.data[1];
     var byte2 = (message.data.length > 2) ? message.data[2] : 0; // a velocity value might not be included with a noteOff command
